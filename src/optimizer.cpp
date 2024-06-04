@@ -27,6 +27,39 @@ std::pair<double, double> linearRegression(const std::vector<std::pair<double, d
     return {slope, intercept};
 }
 
+// Function to perform quadratic regression and return coefficients (a, b, c)
+std::array<double, 3> quadraticRegression(const std::vector<std::pair<double, double>> &points)
+{
+    size_t n = points.size();
+    if (n < 3) {
+        throw std::runtime_error("Not enough points for quadratic regression.");
+    }
+
+    // Calculate sums for the normal equations
+    double sum_x = 0, sum_y = 0, sum_xx = 0, sum_xxx = 0, sum_xxxx = 0, sum_xxy = 0;
+    for (const auto &point : points) {
+        double x = point.first;
+        double y = point.second;
+        sum_x += x;
+        sum_y += y;
+        sum_xx += x * x;
+        sum_xxx += x * x * x;
+        sum_xxxx += x * x * x * x;
+        sum_xxy += x * x * y;
+    }
+
+    // Solve the normal equations (system of 3 linear equations)
+    double denom = n * sum_xxxx - sum_xx * sum_xx;
+    if (denom == 0) {
+        throw std::runtime_error("Singular matrix in quadratic regression.");
+    }
+    double a = (sum_y * sum_xxxx - sum_xx * sum_xxy) / denom;
+    double b = (n * sum_xxy - sum_x * sum_y) / denom;
+    double c = (sum_y - a * sum_xx - b * sum_x) / n;
+    
+    return {a, b, c};
+}
+
 // Function to fit a linear function to data and extract the root
 double fitLinearGetRoot(const std::vector<std::pair<double, double>> &points)
 {
@@ -49,13 +82,13 @@ double computeVariance(const std::vector<double> &y)
     return variance;
 }
 
-// Function to compute chi-squared distance between (1) a function described by the points vector and (2) a linear function described by slope, intercept
-double computeChiSquared(const std::vector<std::pair<double, double>> &points, double slope, double intercept, double variance_y)
+// Function to compute chi-squared distance between (1) a function described by the points vector and (2) a quadratic function described by a, b, c
+double computeChiSquared(const std::vector<std::pair<double, double>> &points, double a, double b, double c, double variance_y)
 {
     double chi_squared = 0;
-    for (const auto &point : points)
-    {
-        double y_fit = slope * point.first + intercept;
+    for (const auto &point : points) {
+        double x = point.first;
+        double y_fit = a * x * x + b * x + c;
         double residual = point.second - y_fit;
         chi_squared += (residual * residual) / variance_y;
     }
@@ -75,17 +108,14 @@ double chiSquared(HarmonicsHandler &harmonics_handler, int component)
     // stitch ell and Bn together
     std::vector<std::pair<double, double>> points = combinePoints(ell, Bn);
 
-    // fit a linear function
-    auto [slope, intercept] = linearRegression(points);
+    // Fit a quadratic function
+    auto [a, b, c] = quadraticRegression(points);
 
-    // TODO TEMP START --------------------
+    std::cout << "Coefficients: a=" << a << ", b=" << b << ", c=" << c << std::endl;
 
-    std::cout << "Slope: " << slope << ", Intercept: " << intercept << std::endl;
-
-    // TODO TEMP END  --------------------
 
     // compute chi squared between the function and the original data
-    double chi_squared = computeChiSquared(points, slope, intercept, variance);
+    double chi_squared = computeChiSquared(points, a, b, c, variance);
 
     return chi_squared;
 }
